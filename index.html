@@ -104,7 +104,7 @@ const tname=id=>(db.teachers.find(t=>t.id===id)||{}).name||'';
 
 function sessions(tid,w){
  const out=[];
- db.tpl.filter(p=>p.tid===tid).forEach(p=>{const date=addD(w,p.day);if((p.from&&date<p.from)||(p.until&&date>p.until))return;out.push({key:p.id+'|'+date,tpl:p,date,time:p.time,type:p.type,title:p.title,tid,school:p.type==='office'?'office':(p.school||'s1')})});
+ db.tpl.filter(p=>p.tid===tid).forEach(p=>{const date=addD(w,p.day),fr=p.from||(/^p\d{12,}$/.test(p.id)?iso(new Date(+p.id.slice(1))):'');if((fr&&date<fr)||(p.until&&date>p.until))return;out.push({key:p.id+'|'+date,tpl:p,date,time:p.time,type:p.type,title:p.title,tid,school:p.type==='office'?'office':(p.school||'s1')})});
  db.one.filter(o=>o.tid===tid&&o.date>=w&&o.date<=addD(w,6)).forEach(o=>out.push({key:o.id+'|'+o.date,one:true,date:o.date,time:o.time,type:o.type,title:o.title,tid,school:o.type==='office'?'office':(o.school||'s1')}));
  out.forEach(s=>{const r=db.sess[s.key]||{};s.rec=r;s.paused=s.tpl&&s.tpl.pauseUntil&&s.date<=s.tpl.pauseUntil;s.reason=r.reason||(s.paused?'Paused until '+fmt(s.tpl.pauseUntil):'');
  s.status=(r.cancelled||s.paused)?'cancelled':r.report?(r.report.issue&&!r.resolved?'issue':'ok'):'pending';s.over=s.status==='pending'&&new Date(s.date+'T'+s.time).getTime()+36e5<Date.now()});
