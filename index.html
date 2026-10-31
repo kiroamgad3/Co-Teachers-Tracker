@@ -64,7 +64,7 @@ textarea{min-height:90px;resize:vertical}
 <script type="module">
 import{initializeApp,deleteApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,createUserWithEmailAndPassword}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,deleteField,onSnapshot,query,where}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,deleteField,deleteDoc,onSnapshot,query,where}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const iso=d=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
@@ -104,11 +104,11 @@ const tname=id=>(db.teachers.find(t=>t.id===id)||{}).name||'';
 
 function sessions(tid,w){
  const out=[];
- db.tpl.filter(p=>p.tid===tid).forEach(p=>{const date=addD(w,p.day);out.push({key:p.id+'|'+date,tpl:p,date,time:p.time,type:p.type,title:p.title,tid,school:p.type==='office'?'office':(p.school||'s1')})});
+ db.tpl.filter(p=>p.tid===tid).forEach(p=>{const date=addD(w,p.day);if((p.from&&date<p.from)||(p.until&&date>p.until))return;out.push({key:p.id+'|'+date,tpl:p,date,time:p.time,type:p.type,title:p.title,tid,school:p.type==='office'?'office':(p.school||'s1')})});
  db.one.filter(o=>o.tid===tid&&o.date>=w&&o.date<=addD(w,6)).forEach(o=>out.push({key:o.id+'|'+o.date,one:true,date:o.date,time:o.time,type:o.type,title:o.title,tid,school:o.type==='office'?'office':(o.school||'s1')}));
  out.forEach(s=>{const r=db.sess[s.key]||{};s.rec=r;s.paused=s.tpl&&s.tpl.pauseUntil&&s.date<=s.tpl.pauseUntil;s.reason=r.reason||(s.paused?'Paused until '+fmt(s.tpl.pauseUntil):'');
  s.status=(r.cancelled||s.paused)?'cancelled':r.report?(r.report.issue&&!r.resolved?'issue':'ok'):'pending';s.over=s.status==='pending'&&new Date(s.date+'T'+s.time).getTime()+36e5<Date.now()});
- return out.sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+ return out.filter(s=>!s.rec.deleted).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
 }
 const find=key=>{const w=monday(parse(key.split('|')[1]));for(const t of db.teachers){const s=sessions(t.id,w).find(x=>x.key===key);if(s)return s}};
 const LBL={ok:'Done',pending:'Pending',issue:'Issue',cancelled:'Cancelled'};
@@ -161,7 +161,7 @@ function adminV(){
 function teacherV(){
  const t=db.teachers.find(x=>x.id===v.id);let h=head(t.name,1)+wkNav();
  h+=list(t.id);
- h+='<h2>Weekly schedule</h2>'+db.tpl.filter(p=>p.tid===t.id).map(p=>`<div class="card" style="border-left-color:var(--${p.type==='school'?'sc':'of'})"><div class="top"><div><b>${esc(p.title)}</b><div class="sub">Every ${DAYS[p.day]} · ${p.time}</div>${p.pauseUntil&&p.pauseUntil>=TW?`<span class="badge b-cancelled">Paused until ${fmt(p.pauseUntil)}</span>`:''}</div></div>
+ h+='<h2>Weekly schedule</h2>'+db.tpl.filter(p=>p.tid===t.id&&!(p.until&&p.until<iso(new Date()))).map(p=>`<div class="card" style="border-left-color:var(--${p.type==='school'?'sc':'of'})"><div class="top"><div><b>${esc(p.title)}</b><div class="sub">Every ${DAYS[p.day]} · ${p.time}</div>${p.pauseUntil&&p.pauseUntil>=TW?`<span class="badge b-cancelled">Paused until ${fmt(p.pauseUntil)}</span>`:''}</div></div>
  <div class="row">${p.pauseUntil&&p.pauseUntil>=TW?`<button class="btn sec" data-a="resume" data-id="${p.id}">▶ Resume now</button>`:`<button class="btn sec" data-a="pause" data-id="${p.id}">⏸ Pause until…</button>`}</div></div>`).join('');
  return h}
 function teacherHome(){
@@ -180,6 +180,7 @@ function sessionV(){
  if(me.role==='coteacher'&&!lk&&s.status!=='cancelled')h+=`<button class="btn" data-a="fill" data-k="${esc(s.key)}">${r?'✏️ Edit report':'📝 Fill report'}</button>`;
  if(me.role==='admin'&&!s.paused)h+=s.rec.cancelled?`<button class="btn ok" data-a="restore" data-k="${esc(s.key)}">↩ Restore session</button>`:`<button class="btn bad" data-a="cancel" data-k="${esc(s.key)}">✕ Cancel session</button>`;
  if(me.role==='admin'&&s.paused)h+='<p class="sub">Paused by the weekly schedule. Resume it from the co-teacher page.</p>';
+ if(me.role==='admin')h+=`<div style="height:10px"></div><button class="btn sec" style="color:var(--bd);border-color:var(--bd)" data-a="del" data-k="${esc(s.key)}">🗑 Delete session</button>`;
  return h}
 function stepper(id,val,label){return `<div class="step"><button data-a="st" data-f="${id}" data-d="-1" aria-label="Decrease ${label}">−</button><b>${val==null?'–':val}</b><button data-a="st" data-f="${id}" data-d="1" aria-label="Increase ${label}">+</button></div>`}
 function formV(){
@@ -199,11 +200,12 @@ function modal(){
  b=`<div class="top"><button class="ib" data-a="cm" data-d="-1" aria-label="Previous month">‹</button><b>${mt}</b><button class="ib" data-a="cm" data-d="1" aria-label="Next month">›</button></div><div class="cal">${DAYS.map(x=>`<span>${x}</span>`).join('')}${c}</div><div class="legend"><span><i class="d-ok"></i>Done</span><span><i class="d-pending"></i>Pending</span><span><i class="d-issue"></i>Issue</span><span><i class="d-cancelled"></i>Cancelled</span></div><div class="row"><button class="btn sec" data-a="x">Close</button><button class="btn" data-a="today">Today</button></div>`}
  if(m.t==='cancel')b=`<h2 style="margin-top:0">Cancel this session?</h2><label for="rs">Reason <small>(optional)</small></label><input id="rs" placeholder="Holiday, exam, teacher absent…"><div class="row"><button class="btn sec" data-a="x">Keep it</button><button class="btn bad" data-a="doCancel">Cancel session</button></div>`;
  if(m.t==='pause')b=`<h2 style="margin-top:0">Pause weekly session</h2><p class="sub">Cancelled every week up to and including this date. It resumes automatically after.</p><label for="pd">Pause until</label><input id="pd" type="date" min="${TW}"><div class="row"><button class="btn sec" data-a="x">Back</button><button class="btn" data-a="doPause">Pause</button></div>`;
+ if(m.t==='del'){const s=find(m.k);b=s&&s.one?`<h2 style="margin-top:0">Delete this session?</h2><p class="sub">It will be removed for good, together with its report.</p><div class="row"><button class="btn sec" data-a="x">Keep it</button><button class="btn bad" data-a="delOne">Delete</button></div>`:`<h2 style="margin-top:0">Delete weekly session</h2><p class="sub">Choose what to remove. Other weeks and their reports are kept.</p><button class="btn bad" data-a="delOne">Only this session</button><div style="height:10px"></div><button class="btn bad" data-a="delFut">This and all future weeks</button><div style="height:10px"></div><button class="btn sec" data-a="x">Keep it</button>`}
  if(m.t==='addSc')b=`<h2 style="margin-top:0">New school</h2><label for="scn">School name</label><input id="scn"><label for="scc">Folder colour</label><input id="scc" type="color" value="#2563eb"><div class="row"><button class="btn sec" data-a="x">Back</button><button class="btn" data-a="doAddSc">Add school</button></div>`;
  if(m.t==='addT')b=`<h2 style="margin-top:0">New co-teacher</h2><label for="nn">Name</label><input id="nn"><label for="ne">Email</label><input id="ne" type="email"><label for="np">Password</label><input id="np" type="text"><div class="row"><button class="btn sec" data-a="x">Back</button><button class="btn" data-a="doAddT">Add</button></div>`;
  if(m.t==='addS')b=`<h2 style="margin-top:0">New one-off session</h2><label for="ct">Co-teacher</label><select id="ct">${db.teachers.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>
  <label>Type</label><div class="seg"><button class="${m.type==='school'?'on':''}" data-a="mt" data-s="school">🏫 School</button><button class="${m.type==='office'?'on':''}" data-a="mt" data-s="office">🕐 Office hours</button></div>
- ${m.type==='school'?`<label for="ssc">School</label><select id="ssc">${db.schools.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>`:''}<label>Repeat</label><div class="seg"><button class="${m.rep?'':'on'}" data-a="rep" data-s="0">One time</button><button class="${m.rep?'on':''}" data-a="rep" data-s="1">Every week</button></div><label for="sd">Date</label><input id="sd" type="date" value="${TW===ws?iso(new Date()):ws}"><label for="stm">Time</label><input id="stm" type="time" value="10:00"><label for="stt">Title</label><input id="stt" placeholder="Optional">
+ ${m.type==='school'?`<label for="ssc">School</label><select id="ssc">${db.schools.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>`:''}<label>Repeat</label><div class="seg"><button class="${m.rep?'':'on'}" data-a="rep" data-s="0">One time</button><button class="${m.rep?'on':''}" data-a="rep" data-s="1">Every week</button></div><label for="sd">Date</label><input id="sd" type="date" min="${iso(new Date())}" value="${ws>iso(new Date())?ws:iso(new Date())}"><label for="stm">Time</label><input id="stm" type="time" value="10:00"><label for="stt">Title</label><input id="stt" placeholder="Optional">
  <div class="row"><button class="btn sec" data-a="x">Back</button><button class="btn" data-a="doAddS">Add session</button></div>`;
  return `<div class="ov" data-a="x"><div class="sheet">${b}</div></div>`}
 
@@ -225,6 +227,9 @@ document.addEventListener('click',e=>{
  if(a==='pick'){day=el.dataset.d;ws=monday(parse(day));m=null;return render()}
  if(a==='today'){day=iso(new Date());ws=TW;m=null;return render()}
  if(a==='allweek'){day=null;return render()}
+ if(a==='del'){m={t:'del',k};return render()}
+ if(a==='delOne'){const key=m.k,s=find(key);if(s&&s.one){deleteDoc(doc(fs,'one',key.split('|')[0]));deleteDoc(doc(fs,'sess',key))}else{const r=db.sess[key]||(db.sess[key]={});r.deleted=true;saveS(key)}m=null;toast('Session deleted');return go('teacher',{id:v.tid})}
+ if(a==='delFut'){const key=m.k;updateDoc(doc(fs,'tpl',key.split('|')[0]),{until:addD(key.split('|')[1],-1)});m=null;toast('Weekly session removed');return go('teacher',{id:v.tid})}
  if(a==='fl'){flt=el.dataset.f;return render()}
  if(a==='fold'){fold=el.dataset.id;return render()}
  if(a==='unfold'){fold=null;return render()}
@@ -248,7 +253,7 @@ document.addEventListener('click',e=>{
  (async()=>{try{const sec=initializeApp(firebaseConfig,'sec'+Date.now()),sa=getAuth(sec),c=await createUserWithEmailAndPassword(sa,em,pw);await setDoc(doc(fs,'users',c.user.uid),{role:'coteacher',name:n,email:em});await signOut(sa);await deleteApp(sec);m=null;render();toast('Co-teacher added')}catch(e){el.disabled=false;toast(e.code==='auth/email-already-in-use'?'That email is already used':'Could not add co-teacher')}})();return}
  if(a==='addS'){m={t:'addS',type:'school'};return render()}
  if(a==='mt'||a==='rep'){if(a==='mt')m.type=el.dataset.s;else m.rep=el.dataset.s==='1';const I=['ct','sd','stm','stt','ssc'],keep=I.map(val);render();I.forEach((i,x)=>{const n=$('#'+i);if(n&&keep[x])n.value=keep[x]});return}
- if(a==='doAddS'){const d=val('sd'),tm=val('stm');if(!d||!tm){toast('Pick a date and time');return}const oid=(m.rep?'p':'o')+Date.now(),o={tid:val('ct'),time:tm,type:m.type,title:val('stt').trim()||TYPE[m.type],school:m.type==='school'?val('ssc'):'office'};if(m.rep){o.day=(parse(d).getDay()+6)%7;setDoc(doc(fs,'tpl',oid),o)}else{o.date=d;setDoc(doc(fs,'one',oid),o)}m=null;render();return toast('Session added')}
+ if(a==='doAddS'){const d=val('sd'),tm=val('stm');if(!d||!tm){toast('Pick a date and time');return}if(d<iso(new Date())){toast('Pick today or a future date');return}const oid=(m.rep?'p':'o')+Date.now(),o={tid:val('ct'),time:tm,type:m.type,title:val('stt').trim()||TYPE[m.type],school:m.type==='school'?val('ssc'):'office'};if(m.rep){o.day=(parse(d).getDay()+6)%7;o.from=iso(new Date());setDoc(doc(fs,'tpl',oid),o)}else{o.date=d;setDoc(doc(fs,'one',oid),o)}m=null;render();return toast('Session added')}
  if(a==='fill'){const s=find(k),r=s.rec.report||{};draft={recap:r.recap||'',solved:r.solved==null?'':String(r.solved),att:r.att||(r.present!=null?r.present+' of '+r.total:''),issue:r.issue||'',sev:r.sev||'minor',tried:false,prev:s.rec.report?null:((db.sess[k.split('|')[0]+'|'+addD(s.date,-7)]||{}).report||null)};return go('form',{key:k,tid:s.tid})}
  if(a==='st'){const f=el.dataset.f,d=+el.dataset.d;let x=draft[f]==null?(d>0?0:0):draft[f]+d;if(draft[f]==null&&d>0)x=f==='present'?1:1;x=Math.max(0,x);if(f==='present'&&x>draft.total)x=draft.total;draft[f]=x;if(f==='total'&&draft.present>x)draft.present=x;return render()}
  if(a==='sev'){draft.sev=el.dataset.s;return render()}
