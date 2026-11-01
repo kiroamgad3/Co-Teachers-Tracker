@@ -130,6 +130,9 @@ function list(tid){const ss=sessions(tid,ws),g={};ss.forEach(s=>(g[s.school]=g[s
  return h+(l.length?'':'<p class="sub">No sessions here.</p>')}
 const EXH=['Week','Co-teacher','School','Type','Title','Date','Time','Status','Recapped on','Questions solved','Attendance','Issue','Severity','Issue status','Admin reply'];
 const exRows=()=>{const R=[];db.teachers.forEach(t=>sessions(t.id,ws).forEach(s=>{const r=s.rec.report||{};R.push([ws,t.name,schName(s.school),TYPE[s.type],s.title,s.date,s.time,s.over?'Report missing':LBL[s.status],r.recap||'',r.solved==null?'':r.solved,r.att||(r.present!=null?r.present+' of '+r.total:''),r.issue||'',r.issue?(r.sev==='attention'?'Needs attention':'Minor'):'',r.issue?(s.rec.resolved?'Resolved':'Open'):'',s.rec.reply?s.rec.reply.text:''])}));return R.sort((a,b)=>(a[1]+a[5]+a[6]).localeCompare(b[1]+b[5]+b[6]))};
+const nextOcc=p=>{const t=new Date(),off=((p.day-((t.getDay()+6)%7))+7)%7;return addD(iso(t),off)};
+const ended=p=>!!(p.until&&p.until<nextOcc(p));
+const oc=p=>{const n=Object.keys(db.sess).filter(k=>k.startsWith(p.id+'|')&&db.sess[k].ov&&k.split('|')[1]>=iso(new Date())).length;return n?`<div class="sub">✏️ ${n} one-time change${n>1?'s':''}</div>`:''};
 const scope=()=>me.role==='admin'?(v.s==='teacher'?[v.id]:db.teachers.map(t=>t.id)):[me.id];
 const daySess=d=>{const w=monday(parse(d));let o=[];scope().forEach(t=>{o=o.concat(sessions(t,w).filter(s=>s.date===d))});return o};
 const dayStat=l=>!l.length?'':l.some(s=>s.status==='issue')?'issue':l.some(s=>s.status==='pending')?'pending':l.some(s=>s.status==='ok')?'ok':'cancelled';
@@ -163,7 +166,7 @@ function adminV(){
 function teacherV(){
  const t=db.teachers.find(x=>x.id===v.id);let h=head(t.name,1)+wkNav();
  h+=list(t.id);
- h+='<h2>Weekly schedule</h2>'+db.tpl.filter(p=>p.tid===t.id&&!(p.until&&p.until<iso(new Date()))).map(p=>`<div class="card" style="border-left-color:var(--${p.type==='school'?'sc':'of'})"><div class="top"><div><b>${esc(p.title)}</b><div class="sub">Every ${DAYS[p.day]} · ${p.time}</div>${p.pauseUntil&&p.pauseUntil>=TW?`<span class="badge b-cancelled">Paused until ${fmt(p.pauseUntil)}</span>`:''}</div></div>
+ h+='<h2>Weekly schedule</h2>'+db.tpl.filter(p=>p.tid===t.id&&!ended(p)).map(p=>`<div class="card" style="border-left-color:var(--${p.type==='school'?'sc':'of'})"><div class="top"><div><b>${esc(p.title)}</b><div class="sub">Every ${DAYS[p.day]} · ${p.time} · ${esc(schName(p.type==='office'?'office':(p.school||'s1')))}${p.from&&p.from>iso(new Date())?' · from '+fmt(p.from):''}${p.until?' · until '+fmt(p.until):''}</div>${oc(p)}${p.pauseUntil&&p.pauseUntil>=TW?`<span class="badge b-cancelled">Paused until ${fmt(p.pauseUntil)}</span>`:''}</div></div>
  <div class="row">${p.pauseUntil&&p.pauseUntil>=TW?`<button class="btn sec" data-a="resume" data-id="${p.id}">▶ Resume now</button>`:`<button class="btn sec" data-a="pause" data-id="${p.id}">⏸ Pause until…</button>`}</div></div>`).join('');
  return h}
 function teacherHome(){
@@ -232,7 +235,7 @@ document.addEventListener('click',e=>{
  if(a==='pick'){day=el.dataset.d;ws=monday(parse(day));m=null;return render()}
  if(a==='today'){day=iso(new Date());ws=TW;m=null;return render()}
  if(a==='allweek'){day=null;return render()}
- if(a==='edit'){const s=find(k);m={t:'edit',k,type:s.type,scope:'one'};return render()}
+ if(a==='edit'){const s=find(k);m={t:'edit',k,type:s.type,scope:'fut'};return render()}
  if(a==='etype'||a==='escope'){if(a==='etype')m.type=el.dataset.s;else m.scope=el.dataset.s;const I=['et','etm','ed','es2'],keep=I.map(val);render();I.forEach((i,x)=>{const n=$('#'+i);if(n&&keep[x])n.value=keep[x]});return}
  if(a==='doEdit'){const key=m.k,s=find(key);if(!s){m=null;return render()}const id=key.split('|')[0],type=m.type,time=val('etm'),title=val('et').trim()||TYPE[type],school=type==='school'?(val('es2')||s.school):'office';
   if(!time){toast('Pick a time');return}
