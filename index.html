@@ -55,7 +55,7 @@ textarea{min-height:90px;resize:vertical}
 .hero{text-align:center;padding:36px 0 10px}.hero div{font-size:3rem}
 .demo{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.demo .btn{min-height:46px;flex:1}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:10px 0}.cal span{text-align:center;font-size:.75rem;color:var(--mut);font-weight:700}.cal button{min-height:48px;border-radius:12px;border:2px solid transparent;background:var(--card);font-weight:700;position:relative;padding:0}.cal button.o{opacity:.4}.cal button.td{border-color:var(--pri)}.cal button.sel{background:var(--pri);color:var(--pt)}.cal button i{position:absolute;bottom:5px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%}.d-ok{background:var(--ok)}.d-pending{background:var(--wn)}.d-issue{background:var(--bd)}.d-cancelled{background:var(--gr)}.chip{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;border-radius:99px;background:var(--scb);color:var(--sc);font-weight:700;border:0;margin:0 0 8px}.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.8rem;color:var(--mut)}.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px}
-.fl{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}.fl button{min-height:44px;padding:0 16px;border-radius:99px;border:2px solid var(--line);background:var(--card);font-weight:700;white-space:nowrap}.fl button.on{background:var(--pri);color:var(--pt);border-color:var(--pri)}.qf{min-height:44px;padding:0 14px;border-radius:99px;border:2px solid var(--line);background:var(--card);font-weight:600;margin:8px 8px 0 0}
+.fl{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px}.fl button{min-height:44px;padding:0 16px;border-radius:99px;border:2px solid var(--line);background:var(--card);font-weight:700;white-space:nowrap}.fl button.on{background:var(--pri);color:var(--pt);border-color:var(--pri)}.qf{min-height:44px;padding:0 14px;border-radius:99px;border:2px solid var(--line);background:var(--card);font-weight:600;margin:8px 8px 0 0}.chk{display:flex;align-items:center;gap:12px;min-height:52px;font-weight:600;margin:10px 0}.chk input{width:26px;height:26px;min-height:0;accent-color:var(--pri)}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0e1424;--card:#18203a;--tx:#eef1fb;--mut:#a3adc8;--line:#2a3558;--pri:#8b83ff;--pt:#0e1424;--ok:#5fe0ac;--okb:#12382d;--wn:#ffc15c;--wnb:#3d2d0c;--bd:#ff8b87;--bdb:#431a1a;--gr:#aab2c5;--grb:#262f4b;--sc:#7eaaff;--scb:#1b2a52;--of:#d3a3ff;--ofb:#35204f;--sh:0 2px 10px rgba(0,0,0,.4);color-scheme:dark}}
 </style>
 </head>
@@ -63,7 +63,7 @@ textarea{min-height:90px;resize:vertical}
 <div id="app"></div>
 <script type="module">
 import{initializeApp,deleteApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,createUserWithEmailAndPassword}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,setPersistence,browserLocalPersistence,browserSessionPersistence,createUserWithEmailAndPassword}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import{getFirestore,collection,doc,getDoc,setDoc,updateDoc,deleteField,deleteDoc,onSnapshot,query,where}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -128,6 +128,8 @@ function list(tid){const ss=sessions(tid,ws),g={};ss.forEach(s=>(g[s.school]=g[s
  let h=(!day&&multi&&fold?`<button class="chip" data-a="unfold">← All folders · ${esc(schName(fold))}</button>`:'')+chips(),last='';
  l.forEach(s=>{if(s.date!==last){last=s.date;h+=`<h2>${s.date===iso(new Date())?'Today · ':''}${DAYS[(parse(s.date).getDay()+6)%7]} ${fmt(s.date)}</h2>`}h+=card(s)});
  return h+(l.length?'':'<p class="sub">No sessions here.</p>')}
+const EXH=['Week','Co-teacher','School','Type','Title','Date','Time','Status','Recapped on','Questions solved','Attendance','Issue','Severity','Issue status','Admin reply'];
+const exRows=()=>{const R=[];db.teachers.forEach(t=>sessions(t.id,ws).forEach(s=>{const r=s.rec.report||{};R.push([ws,t.name,schName(s.school),TYPE[s.type],s.title,s.date,s.time,s.over?'Report missing':LBL[s.status],r.recap||'',r.solved==null?'':r.solved,r.att||(r.present!=null?r.present+' of '+r.total:''),r.issue||'',r.issue?(r.sev==='attention'?'Needs attention':'Minor'):'',r.issue?(s.rec.resolved?'Resolved':'Open'):'',s.rec.reply?s.rec.reply.text:''])}));return R.sort((a,b)=>(a[1]+a[5]+a[6]).localeCompare(b[1]+b[5]+b[6]))};
 const scope=()=>me.role==='admin'?(v.s==='teacher'?[v.id]:db.teachers.map(t=>t.id)):[me.id];
 const daySess=d=>{const w=monday(parse(d));let o=[];scope().forEach(t=>{o=o.concat(sessions(t,w).filter(s=>s.date===d))});return o};
 const dayStat=l=>!l.length?'':l.some(s=>s.status==='issue')?'issue':l.some(s=>s.status==='pending')?'pending':l.some(s=>s.status==='ok')?'ok':'cancelled';
@@ -147,12 +149,12 @@ function view(){
 }
 function login(){return head('Co-Teacher Tracker')+`<div class="hero"><div>📚</div><h2 style="color:var(--tx);text-transform:none;font-size:1.4rem">Welcome back</h2><p class="sub">Sign in once. You stay signed in on this device.</p></div>
 <label for="em">Email</label><input id="em" type="email" autocomplete="username" inputmode="email">
-<label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password"><div class="msg" id="le" style="display:none">Wrong email or password</div>
+<label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password"><label class="chk"><input id="rm" type="checkbox" checked> Keep me signed in</label><div class="msg" id="le" style="display:none">Wrong email or password</div>
 <div class="row"><button class="btn" data-a="login">Sign in</button></div>
 `}
 
 function adminV(){
- let h=head('All co-teachers')+wkNav()+'<div class="row"><button class="btn" data-a="addS">＋ Session</button><button class="btn sec" data-a="addT">＋ Co-teacher</button></div><div class="row"><button class="btn sec" data-a="addSc">📁 ＋ School</button></div>';
+ let h=head('All co-teachers')+wkNav()+'<div class="row"><button class="btn" data-a="addS">＋ Session</button><button class="btn sec" data-a="addT">＋ Co-teacher</button></div><div class="row"><button class="btn sec" data-a="addSc">📁 ＋ School</button><button class="btn sec" data-a="exp">⬇ Export week</button></div>';
  if(day){const l=daySess(day);return h+(l.length?l.map(s=>card(s,1)).join(''):'<p class="sub">No sessions on this day.</p>')}
  const A=attn();if(A.length)h+=`<h2>⚠ Needs attention (${A.length})</h2>`+A.slice(0,6).map(s=>card(s,1)).join('')+'<h2>All co-teachers</h2>';
  db.teachers.forEach(t=>{const ss=sessions(t.id,ws),act=ss.filter(s=>s.status!=='cancelled'),done=act.filter(s=>s.status==='ok'||s.status==='issue').length,iss=ss.filter(s=>s.status==='issue').length,pct=act.length?done/act.length*100:0;
@@ -200,6 +202,7 @@ function modal(){
  b=`<div class="top"><button class="ib" data-a="cm" data-d="-1" aria-label="Previous month">‹</button><b>${mt}</b><button class="ib" data-a="cm" data-d="1" aria-label="Next month">›</button></div><div class="cal">${DAYS.map(x=>`<span>${x}</span>`).join('')}${c}</div><div class="legend"><span><i class="d-ok"></i>Done</span><span><i class="d-pending"></i>Pending</span><span><i class="d-issue"></i>Issue</span><span><i class="d-cancelled"></i>Cancelled</span></div><div class="row"><button class="btn sec" data-a="x">Close</button><button class="btn" data-a="today">Today</button></div>`}
  if(m.t==='cancel')b=`<h2 style="margin-top:0">Cancel this session?</h2><label for="rs">Reason <small>(optional)</small></label><input id="rs" placeholder="Holiday, exam, teacher absent…"><div class="row"><button class="btn sec" data-a="x">Keep it</button><button class="btn bad" data-a="doCancel">Cancel session</button></div>`;
  if(m.t==='pause')b=`<h2 style="margin-top:0">Pause weekly session</h2><p class="sub">Cancelled every week up to and including this date. It resumes automatically after.</p><label for="pd">Pause until</label><input id="pd" type="date" min="${TW}"><div class="row"><button class="btn sec" data-a="x">Back</button><button class="btn" data-a="doPause">Pause</button></div>`;
+ if(m.t==='exp')b=`<h2 style="margin-top:0">Export weekly report</h2><p class="sub">All co-teachers · ${fmt(ws)} – ${fmt(addD(ws,6))}</p><button class="btn" data-a="expCsv">📊 Spreadsheet (CSV)</button><div style="height:10px"></div><button class="btn sec" data-a="expPdf">📄 PDF (print)</button><div style="height:10px"></div><button class="btn sec" data-a="x">Close</button>`;
  if(m.t==='del'){const s=find(m.k);b=s&&s.one?`<h2 style="margin-top:0">Delete this session?</h2><p class="sub">It will be removed for good, together with its report.</p><div class="row"><button class="btn sec" data-a="x">Keep it</button><button class="btn bad" data-a="delOne">Delete</button></div>`:`<h2 style="margin-top:0">Delete weekly session</h2><p class="sub">Choose what to remove. Other weeks and their reports are kept.</p><button class="btn bad" data-a="delOne">Only this session</button><div style="height:10px"></div><button class="btn bad" data-a="delFut">This and all future weeks</button><div style="height:10px"></div><button class="btn sec" data-a="x">Keep it</button>`}
  if(m.t==='addSc')b=`<h2 style="margin-top:0">New school</h2><label for="scn">School name</label><input id="scn"><label for="scc">Folder colour</label><input id="scc" type="color" value="#2563eb"><div class="row"><button class="btn sec" data-a="x">Back</button><button class="btn" data-a="doAddSc">Add school</button></div>`;
  if(m.t==='addT')b=`<h2 style="margin-top:0">New co-teacher</h2><label for="nn">Name</label><input id="nn"><label for="ne">Email</label><input id="ne" type="email"><label for="np">Password</label><input id="np" type="text"><div class="row"><button class="btn sec" data-a="x">Back</button><button class="btn" data-a="doAddT">Add</button></div>`;
@@ -227,6 +230,9 @@ document.addEventListener('click',e=>{
  if(a==='pick'){day=el.dataset.d;ws=monday(parse(day));m=null;return render()}
  if(a==='today'){day=iso(new Date());ws=TW;m=null;return render()}
  if(a==='allweek'){day=null;return render()}
+ if(a==='exp'){m={t:'exp'};return render()}
+ if(a==='expCsv'){const q=c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"',txt='\ufeff'+[EXH].concat(exRows()).map(r=>r.map(q).join(',')).join('\r\n'),u=URL.createObjectURL(new Blob([txt],{type:'text/csv;charset=utf-8'})),a2=document.createElement('a');a2.href=u;a2.download='weekly-report-'+ws+'.csv';document.body.appendChild(a2);a2.click();a2.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);m=null;render();return toast('Report downloaded')}
+ if(a==='expPdf'){const w=window.open('','_blank');if(!w){toast('Please allow pop-ups, then try again');return}const rows=exRows();w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Weekly report ${ws}</title><style>body{font:12px system-ui,sans-serif;padding:12px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:4px;text-align:left;vertical-align:top}th{background:#eee}</style></head><body><h2>Weekly report · ${fmt(ws)} – ${fmt(addD(ws,6))}</h2><table><tr>${EXH.slice(1).map(h=>`<th>${esc(h)}</th>`).join('')}</tr>${rows.map(r=>`<tr>${r.slice(1).map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></body></html>`);w.document.close();setTimeout(()=>w.print(),500);m=null;render();return}
  if(a==='del'){m={t:'del',k};return render()}
  if(a==='delOne'){const key=m.k,s=find(key);if(s&&s.one){deleteDoc(doc(fs,'one',key.split('|')[0]));deleteDoc(doc(fs,'sess',key))}else{const r=db.sess[key]||(db.sess[key]={});r.deleted=true;saveS(key)}m=null;toast('Session deleted');return go('teacher',{id:v.tid})}
  if(a==='delFut'){const key=m.k;updateDoc(doc(fs,'tpl',key.split('|')[0]),{until:addD(key.split('|')[1],-1)});m=null;toast('Weekly session removed');return go('teacher',{id:v.tid})}
@@ -239,7 +245,7 @@ document.addEventListener('click',e=>{
  if(a==='doAddSc'){const n=val('scn').trim();if(!n){toast('Enter the school name');return}setDoc(doc(fs,'schools','s'+Date.now()),{name:n,color:val('scc')});m=null;render();return toast('School added')}
  if(a==='reply'){const t=val('rp').trim();if(!t){toast('Write a reply first');return}(db.sess[k]||(db.sess[k]={})).reply={text:t,at:Date.now()};saveS(k);render();return toast('Reply sent')}
  if(a==='resolve'){(db.sess[k]||(db.sess[k]={})).resolved=true;saveS(k);render();return toast('Issue resolved')}
-  if(a==='login'){const em=val('em').trim(),pw=val('pw');$('#le').style.display='none';if(!em||!pw){$('#le').style.display='block';return}el.disabled=true;signInWithEmailAndPassword(auth,em,pw).catch(()=>{el.disabled=false;$('#le').style.display='block'});return}
+  if(a==='login'){const em=val('em').trim(),pw=val('pw');$('#le').style.display='none';if(!em||!pw){$('#le').style.display='block';return}el.disabled=true;setPersistence(auth,$('#rm').checked?browserLocalPersistence:browserSessionPersistence).then(()=>signInWithEmailAndPassword(auth,em,pw)).catch(()=>{el.disabled=false;$('#le').style.display='block'});return}
  if(a==='teacher'){fold=null;flt='all';return go('teacher',{id:el.dataset.id})}
  if(a==='open'){const s=find(k);return go('session',{key:k,tid:s.tid})}
  if(a==='cancel'){m={t:'cancel',k};return render()}
