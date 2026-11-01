@@ -70,7 +70,7 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const iso=d=>{const x=new Date(d);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
 const parse=s=>{const a=s.split('-');return new Date(+a[0],a[1]-1,+a[2])};
 const addD=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d)};
-const monday=d=>{const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+6)%7));return iso(x)};
+const monday=d=>{const x=new Date(d);x.setDate(x.getDate()-((x.getDay()+1)%7));return iso(x)};
 const fmt=s=>parse(s).toLocaleDateString(undefined,{month:'short',day:'numeric'});
 const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const TYPE={school:'School',office:'Office hours'};
@@ -104,7 +104,7 @@ const tname=id=>(db.teachers.find(t=>t.id===id)||{}).name||'';
 
 function sessions(tid,w){
  const out=[];
- db.tpl.filter(p=>p.tid===tid).forEach(p=>{const date=addD(w,p.day),fr=p.from||(/^p\d{12,}$/.test(p.id)?iso(new Date(+p.id.slice(1))):'');if((fr&&date<fr)||(p.until&&date>p.until))return;out.push({key:p.id+'|'+date,tpl:p,date,time:p.time,type:p.type,title:p.title,tid,school:p.type==='office'?'office':(p.school||'s1')})});
+ db.tpl.filter(p=>p.tid===tid).forEach(p=>{const date=addD(w,(p.day+2)%7),fr=p.from||(/^p\d{12,}$/.test(p.id)?iso(new Date(+p.id.slice(1))):'');if((fr&&date<fr)||(p.until&&date>p.until))return;out.push({key:p.id+'|'+date,tpl:p,date,time:p.time,type:p.type,title:p.title,tid,school:p.type==='office'?'office':(p.school||'s1')})});
  db.one.filter(o=>o.tid===tid&&o.date>=w&&o.date<=addD(w,6)).forEach(o=>out.push({key:o.id+'|'+o.date,one:true,date:o.date,time:o.time,type:o.type,title:o.title,tid,school:o.type==='office'?'office':(o.school||'s1')}));
  out.forEach(s=>{const r=db.sess[s.key]||{};s.rec=r;s.paused=s.tpl&&s.tpl.pauseUntil&&s.date<=s.tpl.pauseUntil;s.reason=r.reason||(s.paused?'Paused until '+fmt(s.tpl.pauseUntil):'');
  s.status=(r.cancelled||s.paused)?'cancelled':r.report?(r.report.issue&&!r.resolved?'issue':'ok'):'pending';s.over=s.status==='pending'&&new Date(s.date+'T'+s.time).getTime()+36e5<Date.now()});
@@ -198,8 +198,8 @@ function formV(){
 
 function modal(){
  if(!m)return'';let b='';
- if(m.t==='cal'){const g=addD(cm,-((parse(cm).getDay()+6)%7)),mt=parse(cm).toLocaleDateString(undefined,{month:'long',year:'numeric'});let c='';for(let i=0;i<42;i++){const d=addD(g,i),st=dayStat(daySess(d));c+=`<button class="${d.slice(0,7)!==cm.slice(0,7)?'o ':''}${d===iso(new Date())?'td ':''}${d===day?'sel':''}" data-a="pick" data-d="${d}" aria-label="${fmt(d)}">${+d.slice(8)}${st?`<i class="d-${st}"></i>`:''}</button>`}
- b=`<div class="top"><button class="ib" data-a="cm" data-d="-1" aria-label="Previous month">‹</button><b>${mt}</b><button class="ib" data-a="cm" data-d="1" aria-label="Next month">›</button></div><div class="cal">${DAYS.map(x=>`<span>${x}</span>`).join('')}${c}</div><div class="legend"><span><i class="d-ok"></i>Done</span><span><i class="d-pending"></i>Pending</span><span><i class="d-issue"></i>Issue</span><span><i class="d-cancelled"></i>Cancelled</span></div><div class="row"><button class="btn sec" data-a="x">Close</button><button class="btn" data-a="today">Today</button></div>`}
+ if(m.t==='cal'){const g=addD(cm,-((parse(cm).getDay()+1)%7)),mt=parse(cm).toLocaleDateString(undefined,{month:'long',year:'numeric'});let c='';for(let i=0;i<42;i++){const d=addD(g,i),st=dayStat(daySess(d));c+=`<button class="${d.slice(0,7)!==cm.slice(0,7)?'o ':''}${d===iso(new Date())?'td ':''}${d===day?'sel':''}" data-a="pick" data-d="${d}" aria-label="${fmt(d)}">${+d.slice(8)}${st?`<i class="d-${st}"></i>`:''}</button>`}
+ b=`<div class="top"><button class="ib" data-a="cm" data-d="-1" aria-label="Previous month">‹</button><b>${mt}</b><button class="ib" data-a="cm" data-d="1" aria-label="Next month">›</button></div><div class="cal">${['Sat','Sun','Mon','Tue','Wed','Thu','Fri'].map(x=>`<span>${x}</span>`).join('')}${c}</div><div class="legend"><span><i class="d-ok"></i>Done</span><span><i class="d-pending"></i>Pending</span><span><i class="d-issue"></i>Issue</span><span><i class="d-cancelled"></i>Cancelled</span></div><div class="row"><button class="btn sec" data-a="x">Close</button><button class="btn" data-a="today">Today</button></div>`}
  if(m.t==='cancel')b=`<h2 style="margin-top:0">Cancel this session?</h2><label for="rs">Reason <small>(optional)</small></label><input id="rs" placeholder="Holiday, exam, teacher absent…"><div class="row"><button class="btn sec" data-a="x">Keep it</button><button class="btn bad" data-a="doCancel">Cancel session</button></div>`;
  if(m.t==='pause')b=`<h2 style="margin-top:0">Pause weekly session</h2><p class="sub">Cancelled every week up to and including this date. It resumes automatically after.</p><label for="pd">Pause until</label><input id="pd" type="date" min="${TW}"><div class="row"><button class="btn sec" data-a="x">Back</button><button class="btn" data-a="doPause">Pause</button></div>`;
  if(m.t==='exp')b=`<h2 style="margin-top:0">Export weekly report</h2><p class="sub">All co-teachers · ${fmt(ws)} – ${fmt(addD(ws,6))}</p><button class="btn" data-a="expCsv">📊 Spreadsheet (CSV)</button><div style="height:10px"></div><button class="btn sec" data-a="expPdf">📄 PDF (print)</button><div style="height:10px"></div><button class="btn sec" data-a="x">Close</button>`;
